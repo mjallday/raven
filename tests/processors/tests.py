@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from mock import Mock
+from raven import Client
 from raven.utils.testutils import TestCase
 from raven.processors import SanitizePasswordsProcessor, RemovePostDataProcessor, \
   RemoveStackLocalsProcessor
@@ -127,6 +128,22 @@ class SantizePasswordsProcessorTest(TestCase):
         proc = SanitizePasswordsProcessor(Mock())
         result = proc.sanitize('foo', '424242424242424')
         self.assertEquals(result, proc.MASK)
+
+    def test_sanitize_real_exception(self):
+        client = Client(
+            'http://user:pass@example.org/123',
+            processors=('raven.processors.SanitizePasswordsProcessor',)
+        )
+
+        try:
+            password = 'supah secret!'
+            1 / 0
+        except Exception as ex:
+            password = 'supah secret!'
+            result = client.build_msg('Exception')
+        pre_context = result['sentry.interfaces.Stacktrace']['frames'][0]['pre_context']
+        for value in pre_context:
+            self.assertFalse(password in value)
 
 
 class RemovePostDataProcessorTest(TestCase):
